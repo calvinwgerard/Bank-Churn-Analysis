@@ -1,0 +1,80 @@
+---
+title: "bank_churn_markdown"
+author: "Calvin Gerard"
+date: "2024-07-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```library(plyr)
+library(corrplot)
+library(caret)
+library(partykit)
+library(gridExtra)
+library(MASS)
+
+data = read.csv("C:/Users/calvi/OneDrive/Desktop/bank_customer_churn/Customer-Churn-Records.csv")
+
+#Renaming columns
+names(data)[names(data) == 'Point.Earned'] <- 'PointsEarned'
+names(data)[names(data) == 'Card.Type'] <- 'CardType'
+names(data)[names(data) == 'Satisfaction.Score'] <- 'SatisfactionScore'
+
+#Checking for null values
+sapply(data, function(x)sum(is.na(x)))
+
+#Transform binary to "yes" and "no" for clarity
+data$HasCrCard <- as.factor(mapvalues(data$HasCrCard,from=c("0","1"),to=c("No", "Yes")))
+data$IsActiveMember <- as.factor(mapvalues(data$IsActiveMember,from=c("0","1"),to=c("No", "Yes")))
+data$Exited<- as.factor(mapvalues(data$Exited,from=c("0","1"),to=c("No", "Yes")))
+data$Complain <- as.factor(mapvalues(data$Complain,from=c("0","1"),to=c("No", "Yes")))
+
+#Split data for decision tree
+split<- createDataPartition(data$Exited,p=0.8,list=FALSE)
+set.seed(95)
+dtr <- data[split,] #training data
+dts <- data[-split,] #testing data
+
+#Create decision trees
+tree <-ctree(Exited~ CreditScore+Age+Tenure+Balance+NumOfProducts+EstimatedSalary+SatisfactionScore++PointsEarned, dtr)
+print(tree) 
+
+#This plot is too crowded to use easily. We will include iot in our findings to show the full picture of the data, but for now we can use two separate decision trees with Age being the main factor in both: dtree1 using Age and NumOfProducts and dtree2 using Age and Balance. This will give us clearer visuals that have a similar accuracy to the first tree.
+
+dtree1 <- ctree(Exited~Age+NumOfProducts, dtr)
+plot(dtree1)
+
+dtree2 <- ctree(Exited~Age+Balance,dtr)
+plot(dtree2)
+#Test findings with confusion matrix
+prediction <- predict(dtree1, dts)
+print("Confusion Matrix for Testing"); table(Predict = prediction, Real = dts$Exited)
+
+prediction2 <- predict(dtree2, dts)
+print("Confusion Matrix for Testing"); table(Predict = prediction, Real = dts$Exited)
+
+a <- predict(dtree1, dtr)
+table1 <- table(Predict = a, Real = dtr$Exited)
+table2 <- table(Predict = prediction, Actual = dts$Exited)
+print(paste('Accuracy Results',sum(diag(table2))/sum(table2)))
+
+b <- predict(dtree2, dtr)
+table3 <- table(Predict = b, Real = dtr$Exited)
+table4 <- table(Predict = prediction2, Actual = dts$Exited)
+print(paste('Accuracy Results',sum(diag(table4))/sum(table4)))
+
+#Now let's test the accuracy if we had used the original tree
+
+prediction3 <- predict(tree, dts)
+print("Confusion Matrix for Testing"); table(Predict = prediction, Real = dts$Exited)
+
+c <- predict(tree, dtr)
+table5 <- table(Predict = c, Real = dtr$Exited)
+table6 <- table(Predict = prediction3, Actual = dts$Exited)
+print(paste('Accuracy Results',sum(diag(table6))/sum(table6)))
+
+#The decision trees with two factors each are easier to read and have comparable accuracy to the original tree, so we will include them in our findings
+```
